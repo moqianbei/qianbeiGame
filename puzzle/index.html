@@ -20,12 +20,23 @@
         <label>🎵 音乐 <input type="range" id="bgm-volume" min="0" max="100" value="30"></label>
       </div>
       <button class="btn-icon" id="btn-sound" title="音效设置">🔊</button>
-      <div class="grid-select">
-        <button class="btn btn-circle" id="btn-grid-less" title="减少切片">−</button>
-        <span class="grid-size-text" id="grid-size-text">4×3</span>
-        <button class="btn btn-circle" id="btn-grid-more" title="增加切片">+</button>
-      </div>
+      <select class="grid-select" id="grid-input">
+        <option value="4">4×4</option>
+        <option value="5">5×5</option>
+        <option value="6">6×6</option>
+        <option value="7">7×7</option>
+        <option value="8">8×8</option>
+        <option value="9">9×9</option>
+        <option value="10">10×10</option>
+      </select>
     </div>
+  </div>
+
+  <!-- ═══ 状态栏：计时 & 步数 ═══ -->
+  <div class="stats-bar">
+    <span class="stat-item" id="stat-timer">⏱ 00:00</span>
+    <span class="stat-item" id="stat-moves">🖐 0步</span>
+    <button class="btn-pause" id="btn-pause" title="暂停 / 继续">⏯</button>
   </div>
 
   <!-- ═══ 游戏主区域 ═══ -->
@@ -37,24 +48,13 @@
 
   <!-- ═══ 底部工具栏 ═══ -->
   <div class="bottom-bar">
-    <button class="btn btn-pill" id="btn-preview">👁 预览</button>
+    <button class="btn btn-pill" id="btn-preview">👁 查看原图</button>
     <button class="btn btn-pill" id="btn-upload">📷 换图</button>
-    <button class="btn btn-pill" id="btn-video">🎬 视频截图</button>
     <button class="btn btn-pill" id="btn-restart">🔄 打乱</button>
   </div>
 
-  <!-- ═══ 隐藏的文件选择 ═══ -->
-  <input type="file" id="file-input" accept="image/*" style="display:none">
-  <input type="file" id="video-input" accept="video/*" style="display:none">
-
-  <!-- ═══ 视频截图浮层 ═══ -->
-  <div class="video-preview-overlay" id="video-preview-overlay">
-    <video id="video-preview" controls playsinline muted></video>
-    <div class="video-preview-btns">
-      <button class="btn btn-pill" id="btn-capture-frame" style="background:#5b9ef0;color:#fff;border-color:#5b9ef0;">📸 截取当前帧</button>
-      <button class="btn btn-pill" id="btn-video-cancel">取消</button>
-    </div>
-  </div>
+  <!-- ═══ 底部提示文字（仅手机端显示） ═══ -->
+  <div class="mobile-hint" id="mobile-hint">👆 点击「👁 查看原图」查看完整图片，点击「📷 换图」更换图片</div>
 
   <!-- ═══ 完成弹窗 ═══ -->
   <div class="overlay" id="complete-overlay">

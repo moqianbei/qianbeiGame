@@ -31,7 +31,6 @@
        ═══════════════════════════ */
     .top-bar {
       width: 100%;
-      max-width: 800px;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -53,17 +52,30 @@
       gap: 8px;
     }
     .grid-select {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-    .grid-size-text {
+      min-width: 72px;
+      height: 36px;
+      border: 1px solid rgba(0,0,0,0.12);
+      border-radius: 18px;
+      background: #fff;
       font-size: 0.88rem;
       font-weight: 700;
       color: #5b9ef0;
-      min-width: 34px;
       text-align: center;
-      font-variant-numeric: tabular-nums;
+      text-align-last: center;
+      font-family: inherit;
+      outline: none;
+      cursor: pointer;
+      padding: 0 28px 0 12px;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      -webkit-appearance: none;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%235b9ef0'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+    }
+    .grid-select:focus {
+      border-color: #5b9ef0;
+      box-shadow: 0 0 0 3px rgba(91,158,240,0.15);
     }
 
     /* ── 通用按钮 ── */
@@ -168,35 +180,76 @@
     }
 
     /* ═══════════════════════════
+       状态栏：计时 & 步数
+       ═══════════════════════════ */
+    .stats-bar {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding: 6px 12px;
+      flex-shrink: 0;
+    }
+    .stat-item {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #555;
+      font-variant-numeric: tabular-nums;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Mono', 'Menlo', monospace;
+    }
+    .btn-pause {
+      width: 30px;
+      height: 30px;
+      padding: 0;
+      border: 1px solid rgba(0,0,0,0.12);
+      border-radius: 50%;
+      background: #fff;
+      font-size: 0.85rem;
+      cursor: pointer;
+      touch-action: manipulation;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, transform 0.1s;
+      flex-shrink: 0;
+    }
+    .btn-pause:active {
+      transform: scale(0.9);
+      background: #e8e8ed;
+    }
+    .btn-pause.paused {
+      background: #5b9ef0;
+      color: #fff;
+      border-color: #5b9ef0;
+    }
+
+    /* ═══════════════════════════
        游戏主区域
        ═══════════════════════════ */
     .game-area {
       flex: 1;
       width: 100%;
-      max-width: 800px;
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 4px 8px;
+      padding: 2px;
       min-height: 0;
       overflow: hidden;
     }
 
     .canvas-wrapper {
       position: relative;
-      background: #ffffff;
-      border: 1px solid rgba(0,0,0,0.08);
-      border-radius: 12px;
-      box-shadow: 0 2px 20px rgba(0,0,0,0.06);
       overflow: hidden;
-      max-width: 100%;
-      max-height: 100%;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     canvas {
       display: block;
-      max-width: 100%;
-      max-height: 100%;
       touch-action: none;
       cursor: grab;
     }
@@ -204,44 +257,11 @@
       cursor: grabbing;
     }
 
-    /* ── 视频预览（用于截图） ── */
-    .video-preview-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.75);
-      z-index: 90;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      gap: 16px;
-      padding: 20px;
-    }
-    .video-preview-overlay.show { display: flex; }
-    .video-preview-overlay video {
-      max-width: 90vw;
-      max-height: 55vh;
-      border-radius: 10px;
-      background: #000;
-    }
-    .video-preview-btns {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      justify-content: center;
-    }
-    .video-preview-btns .btn {
-      font-size: 0.82rem;
-      padding: 12px 20px;
-      border-radius: 24px;
-    }
-
     /* ═══════════════════════════
        底部工具栏
        ═══════════════════════════ */
     .bottom-bar {
       width: 100%;
-      max-width: 800px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -249,6 +269,17 @@
       padding: 8px 10px;
       flex-shrink: 0;
       flex-wrap: wrap;
+      margin-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    /* ── 底部提示文字（手机端） ── */
+    .mobile-hint {
+      text-align: center;
+      font-size: 0.7rem;
+      color: #999;
+      padding: 0 12px 6px;
+      flex-shrink: 0;
+      line-height: 1.5;
       margin-bottom: env(safe-area-inset-bottom, 0px);
     }
 
@@ -341,15 +372,17 @@
     @media (max-width: 400px) {
       .top-bar { padding: 6px 8px; gap: 6px; }
       .top-bar .title { font-size: 0.88rem; }
-      .grid-size-text { font-size: 0.8rem; min-width: 30px; }
-      .btn-circle { width: 32px; height: 32px; font-size: 1rem; }
+      .grid-select { min-width: 68px; height: 32px; font-size: 0.8rem; }
       .btn-icon { width: 32px; height: 32px; font-size: 1rem; }
       .btn-pill { padding: 10px 10px; font-size: 0.7rem; border-radius: 20px; }
       .bottom-bar { padding: 6px 6px; gap: 5px; }
-      .game-area { padding: 2px 4px; }
+      .game-area { padding: 2px; }
       .overlay-card { padding: 22px 20px; margin: 16px; }
       .overlay-icon { font-size: 2.4rem; }
       .overlay-msg { font-size: 1.2rem; }
+      .stats-bar { padding: 4px 8px; gap: 10px; }
+      .stat-item { font-size: 0.78rem; }
+      .btn-pause { width: 28px; height: 28px; font-size: 0.78rem; }
     }
 
     @media (min-width: 401px) and (max-width: 600px) {
@@ -371,7 +404,10 @@
       .top-bar .title { font-size: 0.82rem; }
       .bottom-bar { padding: 4px 6px; gap: 4px; }
       .btn-pill { padding: 7px 10px; font-size: 0.68rem; }
-      .btn-circle { width: 28px; height: 28px; font-size: 0.9rem; }
+      .grid-select { min-width: 64px; height: 28px; font-size: 0.75rem; }
       .btn-icon { width: 28px; height: 28px; font-size: 0.9rem; }
-      .game-area { padding: 2px 4px; }
+      .game-area { padding: 2px; }
+      .stats-bar { padding: 2px 6px; gap: 8px; }
+      .stat-item { font-size: 0.72rem; }
+      .btn-pause { width: 26px; height: 26px; font-size: 0.72rem; }
     }

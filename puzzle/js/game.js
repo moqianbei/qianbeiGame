@@ -4,52 +4,113 @@
     // ═══════════════════════════════════════
     //  配置
     // ═══════════════════════════════════════
-    const GRID_SIZES = [
-      { rows: 3, cols: 2 },
-      { rows: 4, cols: 3 },
-      { rows: 5, cols: 5 },
-      { rows: 6, cols: 6 },
-      { rows: 7, cols: 7 },
-      { rows: 8, cols: 8 },
-      { rows: 9, cols: 9 },
-      { rows: 10, cols: 10 },
-    ];
-    const DEFAULT_GRID_INDEX = 1;  // 默认 4×3
+    const DEFAULT_ROWS = 4;
+    const DEFAULT_COLS = 4;
     const DEFAULT_IMG = 'img/demo.jpg';
+    const MIN_GRID = 4;
+    const MAX_GRID = 10;
+
+    // img 文件夹下的可用图片列表
+    const IMG_LIST = [
+      'img/demo.jpg',
+      'img/demo1.jpg',
+      'img/demo2.png',
+      'img/demo3.png',
+      'img/demo4.png',
+      'img/demo5.png',
+      'img/demo6.png',
+    ];
+
+    // 按横竖版分类的图片列表
+    let portraitImages = [];   // 竖版（高 > 宽），手机端使用
+    let landscapeImages = [];  // 横版（宽 >= 高），桌面端使用
+    let activeImageList = [];  // 当前设备对应的图片列表
+
+    function isMobileDevice() {
+      return window.innerWidth < 768;
+    }
+
+    // 预加载所有图片并分类横竖版
+    function buildImageLists(callback) {
+      var loaded = 0;
+      var total = IMG_LIST.length;
+      portraitImages = [];
+      landscapeImages = [];
+
+      IMG_LIST.forEach(function (src) {
+        var probe = new Image();
+        probe.onload = function () {
+          if (probe.height > probe.width) {
+            portraitImages.push(src);
+          } else {
+            landscapeImages.push(src);
+          }
+          loaded++;
+          if (loaded >= total) finish();
+        };
+        probe.onerror = function () {
+          // 加载失败默认归为横版
+          landscapeImages.push(src);
+          loaded++;
+          if (loaded >= total) finish();
+        };
+        probe.src = src;
+      });
+
+      function finish() {
+        updateActiveImageList();
+        if (callback) callback();
+      }
+    }
+
+    function updateActiveImageList() {
+      var list = isMobileDevice() ? portraitImages : landscapeImages;
+      // 如果当前设备对应的列表为空，回退到全部图片
+      if (list.length === 0) list = IMG_LIST;
+      activeImageList = list;
+    }
+
+    function getActiveImageList() {
+      updateActiveImageList();
+      return activeImageList;
+    }
 
     // ═══════════════════════════════════════
     //  DOM 引用
     // ═══════════════════════════════════════
     const canvas = document.getElementById('puzzle-canvas');
     const ctx = canvas.getContext('2d');
-    const gridSizeText = document.getElementById('grid-size-text');
+    const gridInput = document.getElementById('grid-input');
     const btnPreview = document.getElementById('btn-preview');
     const completeOverlay = document.getElementById('complete-overlay');
-    const fileInput = document.getElementById('file-input');
-    const videoInput = document.getElementById('video-input');
-    const videoPreviewOverlay = document.getElementById('video-preview-overlay');
-    const videoPreview = document.getElementById('video-preview');
     const btnSound = document.getElementById('btn-sound');
     const volumePopup = document.getElementById('volume-popup');
     const sfxVolumeSlider = document.getElementById('sfx-volume');
     const bgmVolumeSlider = document.getElementById('bgm-volume');
     const confettiContainer = document.getElementById('confetti-container');
     const completionStats = document.getElementById('completion-stats');
+    const mobileHint = document.getElementById('mobile-hint');
+    const statTimer = document.getElementById('stat-timer');
+    const statMoves = document.getElementById('stat-moves');
+    const btnPause = document.getElementById('btn-pause');
 
     // ═══════════════════════════════════════
     //  游戏状态
     // ═══════════════════════════════════════
-    let currentGridIndex = DEFAULT_GRID_INDEX;
-    let rows = GRID_SIZES[DEFAULT_GRID_INDEX].rows;
-    let cols = GRID_SIZES[DEFAULT_GRID_INDEX].cols;
+    let rows = DEFAULT_ROWS;
+    let cols = DEFAULT_COLS;
     let total = rows * cols;
 
     let image = null;
     let currentImageSrc = DEFAULT_IMG;
+    let currentImageIndex = 0; // IMG_LIST 中的当前索引
     let previewMode = false;
     let gameComplete = false;
     let moveCount = 0;
     let startTime = 0;
+    let paused = false;
+    let elapsedSeconds = 0;
+    let timerInterval = null;
 
     // 画布 / 网格布局
     let gridX = 0, gridY = 0;
@@ -69,199 +130,80 @@
     let dragAnchorCellX = 0, dragAnchorCellY = 0;
     let dragDx = 0, dragDy = 0;
 
+    // 高 DPI 适配：逻辑尺寸（CSS 像素），canvas 内部分辨率为逻辑尺寸 × devicePixelRatio
+    let canvasLogicalW = 0;
+    let canvasLogicalH = 0;
+    // 移动端边框缩放因子
+    let styleScale = 1.0;
+
     // ═══════════════════════════════════════
-    //  音效系统 (Web Audio API)
+    //  音效系统 (MP3 文件播放)
+    //  将 MP3 文件放入 puzzle/sounds/ 目录即可自动加载
     // ═══════════════════════════════════════
-    let audioCtx = null;
-    let sfxGainNode = null;
-    let bgmGainNode = null;
-    let bgmOscillators = [];
-    let bgmPlaying = false;
-    let soundEnabled = true;
-    let sfxVolume = 0.6;
-    let bgmVolume = 0.3;
 
-    function getAudioCtx() {
-      if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        // 主音量节点
-        sfxGainNode = audioCtx.createGain();
-        sfxGainNode.gain.value = sfxVolume;
-        sfxGainNode.connect(audioCtx.destination);
+    // 音效文件路径（替换这些文件即可更换音效，支持 .wav / .mp3 / .ogg）
+    var SOUND_FILES = {
+      pickup:   'sounds/pickup.wav',
+      drop:     'sounds/drop.wav',
+      // snap:     'sounds/snap.wav',
+      complete: 'sounds/complete.wav',
+      shuffle:  'sounds/shuffle.wav',
+      button:   'sounds/button.wav',
+      bgm:      'sounds/bgm.wav',
+    };
 
-        bgmGainNode = audioCtx.createGain();
-        bgmGainNode.gain.value = bgmVolume;
-        bgmGainNode.connect(audioCtx.destination);
-      }
-      // 确保 AudioContext 处于运行状态（某些浏览器需要用户交互后恢复）
-      if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
-      }
-      return audioCtx;
-    }
+    var soundEnabled = true;
+    var sfxVolume = 0.6;
+    var bgmVolume = 0.3;
+    var bgmAudio = null;
 
-    function playTone(freq, endFreq, duration, type, vol, gainNode) {
-      if (!soundEnabled) return;
+    // 播放音效（短音效，每次创建新实例以支持重叠播放）
+    function playSfx(name) {
+      if (!soundEnabled || sfxVolume <= 0) return;
       try {
-        var ctx = getAudioCtx();
-        var now = ctx.currentTime;
-        var osc = ctx.createOscillator();
-        var gain = ctx.createGain();
-        osc.type = type || 'sine';
-        osc.frequency.setValueAtTime(freq, now);
-        if (endFreq) {
-          osc.frequency.exponentialRampToValueAtTime(Math.max(endFreq, 20), now + duration);
-        }
-        gain.gain.setValueAtTime(vol, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
-        osc.connect(gain);
-        gain.connect(gainNode || sfxGainNode);
-        osc.start(now);
-        osc.stop(now + duration);
-      } catch (_) { /* 静默忽略 */ }
-    }
-
-    function playNoise(duration, vol, gainNode) {
-      if (!soundEnabled) return;
-      try {
-        var ctx = getAudioCtx();
-        var bufferSize = Math.floor(ctx.sampleRate * duration);
-        var buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-        var data = buffer.getChannelData(0);
-        for (var i = 0; i < bufferSize; i++) {
-          data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 2);
-        }
-        var source = ctx.createBufferSource();
-        source.buffer = buffer;
-        var gain = ctx.createGain();
-        gain.gain.setValueAtTime(vol, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-        var filter = ctx.createBiquadFilter();
-        filter.type = 'highpass';
-        filter.frequency.value = 600;
-        source.connect(filter);
-        filter.connect(gain);
-        gain.connect(gainNode || sfxGainNode);
-        source.start(ctx.currentTime);
+        var audio = new Audio(SOUND_FILES[name]);
+        audio.volume = sfxVolume;
+        audio.play().catch(function () { /* 文件不存在时静默忽略 */ });
       } catch (_) { /* 静默忽略 */ }
     }
 
     // ── 各音效 ──
-    function playPickupSound() {
-      playTone(400, 600, 0.05, 'sine', 0.08, sfxGainNode);
-    }
+    function playPickupSound()   { playSfx('pickup'); }
+    function playDropSound()     { playSfx('drop'); }
+    function playSnapSound()     { playSfx('snap'); }
+    function playCompleteSound() { playSfx('complete'); }
+    function playShuffleSound()  { playSfx('shuffle'); }
+    function playButtonSound()   { playSfx('button'); }
 
-    function playDropSound() {
-      playTone(200, 80, 0.08, 'triangle', 0.1, sfxGainNode);
-      playNoise(0.03, 0.05, sfxGainNode);
-    }
-
-    function playSnapSound() {
-      // 连接成功：清脆柔和的「叮」一声
-      playTone(1200, 800, 0.12, 'sine', 0.12, sfxGainNode);
-    }
-
-    function playCompleteSound() {
-      // 完成：柔和上行琶音
-      if (!soundEnabled) return;
-      try {
-        var ctx = getAudioCtx();
-        var now = ctx.currentTime;
-        var notes = [523, 659, 784, 1047]; // C5, E5, G5, C6
-        notes.forEach(function(freq, i) {
-          var osc = ctx.createOscillator();
-          var gain = ctx.createGain();
-          osc.type = 'sine';
-          var t = now + i * 0.14;
-          osc.frequency.setValueAtTime(freq, t);
-          gain.gain.setValueAtTime(0.13, t);
-          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
-          osc.connect(gain);
-          gain.connect(sfxGainNode);
-          osc.start(t);
-          osc.stop(t + 0.3);
-        });
-      } catch (_) { /* 静默忽略 */ }
-    }
-
-    function playShuffleSound() {
-      // 打乱：轻柔快速随机音
-      if (!soundEnabled) return;
-      try {
-        var ctx = getAudioCtx();
-        var now = ctx.currentTime;
-        for (var i = 0; i < 6; i++) {
-          var osc = ctx.createOscillator();
-          var gain = ctx.createGain();
-          osc.type = 'sine';
-          var t = now + i * 0.04;
-          var freq = 400 + Math.random() * 500;
-          osc.frequency.setValueAtTime(freq, t);
-          gain.gain.setValueAtTime(0.04, t);
-          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
-          osc.connect(gain);
-          gain.connect(sfxGainNode);
-          osc.start(t);
-          osc.stop(t + 0.04);
-        }
-      } catch (_) { /* 静默忽略 */ }
-    }
-
-    function playButtonSound() {
-      playTone(800, 600, 0.04, 'sine', 0.06, sfxGainNode);
-    }
-
-    // ── 背景音乐（简单的环境音） ──
+    // ── 背景音乐（循环播放） ──
     function startBgm() {
-      if (bgmPlaying || !soundEnabled) return;
+      if (bgmAudio || !soundEnabled || bgmVolume <= 0) return;
       try {
-        var ctx = getAudioCtx();
-        bgmPlaying = true;
-        // 柔和的持续音景
-        function addPad(freq, modSpeed) {
-          var osc = ctx.createOscillator();
-          var gain = ctx.createGain();
-          var lfo = ctx.createOscillator();
-          var lfoGain = ctx.createGain();
-
-          osc.type = 'sine';
-          osc.frequency.value = freq;
-          lfo.frequency.value = modSpeed;
-          lfoGain.gain.value = 3;
-
-          lfo.connect(lfoGain);
-          lfoGain.connect(osc.frequency);
-          gain.gain.value = 0.04;
-          osc.connect(gain);
-          gain.connect(bgmGainNode);
-
-          osc.start();
-          lfo.start();
-          bgmOscillators.push(osc, lfo);
-        }
-        addPad(196, 0.15);   // G3
-        addPad(247, 0.18);   // B3
-        addPad(294, 0.12);   // D4
-      } catch (_) { /* 静默忽略 */ }
+        bgmAudio = new Audio(SOUND_FILES.bgm);
+        bgmAudio.loop = true;
+        bgmAudio.volume = bgmVolume;
+        bgmAudio.play().catch(function () { bgmAudio = null; });
+      } catch (_) { bgmAudio = null; }
     }
 
     function stopBgm() {
-      bgmOscillators.forEach(function(o) {
-        try { o.stop(); } catch (_) { /* ok */ }
-      });
-      bgmOscillators = [];
-      bgmPlaying = false;
+      if (bgmAudio) {
+        bgmAudio.pause();
+        bgmAudio.currentTime = 0;
+        bgmAudio = null;
+      }
     }
 
     function updateSoundState() {
       if (soundEnabled) {
-        sfxGainNode && (sfxGainNode.gain.value = sfxVolume);
-        bgmGainNode && (bgmGainNode.gain.value = bgmVolume);
-        btnSound.textContent = bgmPlaying ? '🎵' : '🔊';
+        if (bgmAudio) {
+          bgmAudio.volume = bgmVolume;
+          if (bgmAudio.paused) bgmAudio.play().catch(function () {});
+        }
+        btnSound.textContent = (bgmAudio && !bgmAudio.paused) ? '🎵' : '🔊';
         btnSound.classList.remove('muted');
       } else {
-        sfxGainNode && (sfxGainNode.gain.value = 0);
-        bgmGainNode && (bgmGainNode.gain.value = 0);
+        if (bgmAudio) bgmAudio.pause();
         btnSound.textContent = '🔇';
         btnSound.classList.add('muted');
       }
@@ -272,32 +214,34 @@
       if (soundEnabled) {
         sfxVolume = parseInt(sfxVolumeSlider.value) / 100;
         bgmVolume = parseInt(bgmVolumeSlider.value) / 100;
-        // 如果之前 bgm 在播放，恢复
-        if (bgmOscillators.length === 0 && bgmVolume > 0) {
-          bgmPlaying = false;
+        if (!bgmAudio && bgmVolume > 0) {
           startBgm();
+        } else if (bgmAudio) {
+          bgmAudio.volume = bgmVolume;
+          if (bgmAudio.paused) bgmAudio.play().catch(function () {});
         }
       }
       updateSoundState();
       playButtonSound();
     }
 
-    sfxVolumeSlider.addEventListener('input', function() {
+    sfxVolumeSlider.addEventListener('input', function () {
       sfxVolume = parseInt(this.value) / 100;
-      if (soundEnabled && sfxGainNode) sfxGainNode.gain.value = sfxVolume;
     });
 
-    bgmVolumeSlider.addEventListener('input', function() {
+    bgmVolumeSlider.addEventListener('input', function () {
       bgmVolume = parseInt(this.value) / 100;
-      if (bgmVolume > 0 && !bgmPlaying && soundEnabled) {
+      if (bgmAudio) {
+        bgmAudio.volume = bgmVolume;
+      }
+      if (bgmVolume > 0 && !bgmAudio && soundEnabled) {
         startBgm();
-      } else if (bgmVolume === 0 && bgmPlaying) {
+      } else if (bgmVolume === 0 && bgmAudio) {
         stopBgm();
       }
-      if (soundEnabled && bgmGainNode) bgmGainNode.gain.value = bgmVolume;
     });
 
-    btnSound.addEventListener('click', function(e) {
+    btnSound.addEventListener('click', function (e) {
       e.stopPropagation();
       if (volumePopup.classList.contains('show')) {
         volumePopup.classList.remove('show');
@@ -308,21 +252,21 @@
 
     // 长按打开音量设置
     var soundLongPressTimer;
-    btnSound.addEventListener('pointerdown', function(e) {
-      soundLongPressTimer = setTimeout(function() {
+    btnSound.addEventListener('pointerdown', function (e) {
+      soundLongPressTimer = setTimeout(function () {
         volumePopup.classList.toggle('show');
         playButtonSound();
       }, 500);
     });
-    btnSound.addEventListener('pointerup', function() {
+    btnSound.addEventListener('pointerup', function () {
       clearTimeout(soundLongPressTimer);
     });
-    btnSound.addEventListener('pointerleave', function() {
+    btnSound.addEventListener('pointerleave', function () {
       clearTimeout(soundLongPressTimer);
     });
 
     // 点击其他地方关闭音量弹窗
-    document.addEventListener('click', function(e) {
+    document.addEventListener('click', function (e) {
       if (!volumePopup.contains(e.target) && e.target !== btnSound) {
         volumePopup.classList.remove('show');
       }
@@ -418,47 +362,62 @@
     function resetGameState() {
       gameComplete = false;
       previewMode = false;
+      paused = false;
       moveCount = 0;
       startTime = Date.now();
       completeOverlay.classList.remove('show');
-      btnPreview.textContent = '👁 预览';
+      btnPreview.textContent = '👁 查看原图';
       btnPreview.classList.remove('active');
       confettiContainer.innerHTML = '';
+      if (btnPause) {
+        btnPause.classList.remove('paused');
+        btnPause.textContent = '⏯';
+      }
+      startTimer();
+      updateStatsDisplay();
     }
 
     // ═══════════════════════════════════════
     //  Canvas 尺寸 & 布局
     // ═══════════════════════════════════════
     function resizeCanvas() {
+      var dpr = window.devicePixelRatio || 1;
       var gameArea = document.querySelector('.game-area');
       var style = window.getComputedStyle(gameArea);
       var padH = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
       var padW = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
 
-      var availW = Math.min(gameArea.clientWidth - padW, 800);
+      var availW = gameArea.clientWidth - padW;
       var availH = gameArea.clientHeight - padH;
 
-      // 手机端给更多竖向空间
-      var isMobile = window.innerWidth < 600;
-      var aspectLimit = isMobile ? 1.0 : 0.85;
-
-      var h = Math.min(availH, availW * aspectLimit);
-      var w = Math.min(availW, h / aspectLimit);
-
       // 确保最小尺寸
-      w = Math.max(w, 200);
-      h = Math.max(h, 150);
+      availW = Math.max(availW, 200);
+      availH = Math.max(availH, 150);
 
-      if (canvas.width !== Math.floor(w) || canvas.height !== Math.floor(h)) {
-        canvas.width = Math.floor(w);
-        canvas.height = Math.floor(h);
+      var logicalW = Math.floor(availW);
+      var logicalH = Math.floor(availH);
+
+      var neededW = Math.floor(logicalW * dpr);
+      var neededH = Math.floor(logicalH * dpr);
+
+      if (canvas.width !== neededW || canvas.height !== neededH) {
+        canvas.width = neededW;
+        canvas.height = neededH;
+        canvas.style.width = logicalW + 'px';
+        canvas.style.height = logicalH + 'px';
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       }
+
+      canvasLogicalW = logicalW;
+      canvasLogicalH = logicalH;
     }
 
     function layout() {
       resizeCanvas();
-      var cw = canvas.width;
-      var ch = canvas.height;
+      // 移动端使用更小的边框缩放因子
+      styleScale = window.innerWidth < 600 ? 0.6 : 1.0;
+      var cw = canvasLogicalW;
+      var ch = canvasLogicalH;
       var margin = Math.max(16, Math.min(cw, ch) * 0.05);
       var availW = cw - margin * 2;
       var availH = ch - margin * 2;
@@ -511,9 +470,16 @@
 
       rebuildAllConnections();
       moveCount = 0;
+      paused = false;
       startTime = Date.now();
       gameComplete = false;
       completeOverlay.classList.remove('show');
+      if (btnPause) {
+        btnPause.classList.remove('paused');
+        btnPause.textContent = '⏯';
+      }
+      startTimer();
+      updateStatsDisplay();
     }
 
     function shuffleGrid() {
@@ -780,8 +746,8 @@
     }
 
     function render() {
-      var W = canvas.width;
-      var H = canvas.height;
+      var W = canvasLogicalW;
+      var H = canvasLogicalH;
 
       ctx.fillStyle = '#f2f2f7';
       ctx.fillRect(0, 0, W, H);
@@ -803,10 +769,18 @@
           ctx.beginPath(); ctx.moveTo(x, gridY); ctx.lineTo(x, gridY + gridH); ctx.stroke();
         }
 
+        // 底部提示条
+        var tipH = 36;
+        var tipY = H - tipH;
+        ctx.fillStyle = 'rgba(0,0,0,0.70)';
+        ctx.fillRect(0, tipY, W, tipH);
+
         ctx.fillStyle = '#fff';
-        ctx.font = '600 14px -apple-system, sans-serif';
+        ctx.font = '600 13px -apple-system, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText('👁 预览模式 · 点击关闭', W / 2, gridY - 12);
+        ctx.textBaseline = 'middle';
+        ctx.fillText('👁 原图模式 · 点击任意位置关闭', W / 2, tipY + tipH / 2);
+        ctx.textBaseline = 'alphabetic';
         ctx.textAlign = 'start';
         return;
       }
@@ -876,6 +850,21 @@
         drawGroupContour(dragGroupIds, true);
       }
 
+      // 暂停遮罩
+      if (paused) {
+        ctx.fillStyle = 'rgba(0,0,0,0.45)';
+        ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = '#fff';
+        ctx.font = '700 24px -apple-system, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('⏸ 已暂停', W / 2, H / 2 - 8);
+        ctx.font = '500 13px -apple-system, sans-serif';
+        ctx.fillText('点击画面继续', W / 2, H / 2 + 24);
+        ctx.textAlign = 'start';
+        ctx.textBaseline = 'alphabetic';
+      }
+
       // 完成提示
       if (isComplete() && !isDragging) {
         ctx.fillStyle = 'rgba(255,255,255,0.85)';
@@ -913,8 +902,9 @@
         ctx.drawImage(image, sx, sy, sw, sh, x, y, cellW, cellH);
         ctx.restore();
       } else {
-        var gap = 2;
-        var cornerR = 5;
+        var gap = Math.max(0.5, 2 * styleScale);
+        var cornerR = Math.max(1, 5 * styleScale);
+        var lineW = Math.max(0.5, 2.5 * styleScale);
         ctx.save();
         roundRectPath(x + gap, y + gap, cellW - gap * 2, cellH - gap * 2, cornerR);
         ctx.clip();
@@ -922,9 +912,9 @@
         ctx.restore();
 
         ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = lineW;
         ctx.shadowColor = 'rgba(0,0,0,0.1)';
-        ctx.shadowBlur = 4;
+        ctx.shadowBlur = Math.max(2, 4 * styleScale);
         ctx.shadowOffsetY = 1;
         roundRectPath(x + gap, y + gap, cellW - gap * 2, cellH - gap * 2, cornerR);
         ctx.stroke();
@@ -941,8 +931,8 @@
 
       var offsetX = isDraggingGroup ? dragDx : 0;
       var offsetY = isDraggingGroup ? dragDy : 0;
-      var GAP = 1.5;
-      var lineW = isDraggingGroup ? 3.5 : 2.5;
+      var GAP = Math.max(0.5, 1.5 * styleScale);
+      var lineW = Math.max(0.5, (isDraggingGroup ? 3.5 : 2.5) * styleScale);
 
       ctx.save();
       ctx.strokeStyle = '#5b9ef0';
@@ -1037,8 +1027,8 @@
     function canvasPos(e) {
       var rect = canvas.getBoundingClientRect();
       return {
-        x: (e.clientX - rect.left) * (canvas.width / rect.width),
-        y: (e.clientY - rect.top) * (canvas.height / rect.height),
+        x: (e.clientX - rect.left) * (canvasLogicalW / rect.width),
+        y: (e.clientY - rect.top) * (canvasLogicalH / rect.height),
       };
     }
 
@@ -1051,6 +1041,11 @@
 
     canvas.addEventListener('pointerdown', function (e) {
       if (!image) return;
+
+      if (paused) {
+        togglePause();
+        return;
+      }
 
       if (previewMode) {
         togglePreview();
@@ -1103,6 +1098,7 @@
         didMove = moveGroup(dragPieceId, targetCell.row, targetCell.col);
         if (didMove) {
           moveCount++;
+          updateStatsDisplay();
           var newGroup = getGroup(dragPieceId);
           if (newGroup.length > oldGroupSize) {
             playSnapSound();
@@ -1129,15 +1125,13 @@
 
       if (isComplete() && !gameComplete) {
         gameComplete = true;
+        stopTimer();
         playCompleteSound();
         haptic('complete');
         spawnConfetti();
         render();
 
-        var elapsed = Math.floor((Date.now() - startTime) / 1000);
-        var min = Math.floor(elapsed / 60);
-        var sec = elapsed % 60;
-        var timeStr = min > 0 ? min + '分' + sec + '秒' : sec + '秒';
+        var timeStr = formatTime(elapsedSeconds);
         completionStats.textContent = '⏱ ' + timeStr + '  |  🖐 ' + moveCount + '步';
 
         setTimeout(function () {
@@ -1165,22 +1159,75 @@
     }, { passive: false });
 
     // ═══════════════════════════════════════
+    //  计时 & 步数显示
+    // ═══════════════════════════════════════
+
+    function formatTime(sec) {
+      var m = Math.floor(sec / 60);
+      var s = sec % 60;
+      return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+    }
+
+    function updateStatsDisplay() {
+      if (statTimer) statTimer.textContent = '⏱ ' + formatTime(elapsedSeconds);
+      if (statMoves) statMoves.textContent = '🖐 ' + moveCount + '步';
+    }
+
+    function startTimer() {
+      stopTimer();
+      elapsedSeconds = 0;
+      updateStatsDisplay();
+      timerInterval = setInterval(function () {
+        if (!paused) {
+          elapsedSeconds++;
+          updateStatsDisplay();
+        }
+      }, 1000);
+    }
+
+    function stopTimer() {
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
+    }
+
+    function togglePause() {
+      if (gameComplete || !image) return;
+      paused = !paused;
+      if (paused) {
+        btnPause.classList.add('paused');
+        btnPause.textContent = '▶';
+      } else {
+        btnPause.classList.remove('paused');
+        btnPause.textContent = '⏯';
+      }
+      playButtonSound();
+      render();
+    }
+
+    btnPause.addEventListener('click', function (e) {
+      e.stopPropagation();
+      togglePause();
+    });
+
+    // ═══════════════════════════════════════
     //  UI 控制
     // ═══════════════════════════════════════
 
-    function updateGridSizeUI() {
-      gridSizeText.textContent = rows + '×' + cols;
+    // ── 网格选择解析 ──
+    function parseGridInput(value) {
+      var n = parseInt(value, 10);
+      if (isNaN(n) || n < 4 || n > 10) return null;
+      return { rows: n, cols: n };
     }
 
-    function changeGridSize(delta) {
-      var newIdx = currentGridIndex + delta;
-      if (newIdx < 0 || newIdx >= GRID_SIZES.length) return;
-
-      currentGridIndex = newIdx;
-      rows = GRID_SIZES[currentGridIndex].rows;
-      cols = GRID_SIZES[currentGridIndex].cols;
+    function setGridSize(newRows, newCols) {
+      if (rows === newRows && cols === newCols) return;
+      rows = newRows;
+      cols = newCols;
       total = rows * cols;
-      updateGridSizeUI();
+      gridInput.value = rows;
 
       if (image) {
         playShuffleSound();
@@ -1191,13 +1238,18 @@
       }
     }
 
-    document.getElementById('btn-grid-less').addEventListener('click', function () {
-      playButtonSound();
-      changeGridSize(-1);
-    });
-    document.getElementById('btn-grid-more').addEventListener('click', function () {
-      playButtonSound();
-      changeGridSize(1);
+    function updateGridInputUI() {
+      gridInput.value = rows;
+    }
+
+    gridInput.addEventListener('change', function () {
+      var parsed = parseGridInput(this.value);
+      if (parsed) {
+        playButtonSound();
+        setGridSize(parsed.rows, parsed.cols);
+      } else {
+        this.value = rows;
+      }
     });
 
     // ── 预览原图 ──
@@ -1207,9 +1259,11 @@
       if (previewMode) {
         btnPreview.textContent = '🙈 隐藏';
         btnPreview.classList.add('active');
+        if (mobileHint) mobileHint.textContent = '👆 点击画面任意位置关闭原图';
       } else {
-        btnPreview.textContent = '👁 预览';
+        btnPreview.textContent = '👁 查看原图';
         btnPreview.classList.remove('active');
+        if (mobileHint) mobileHint.textContent = '👆 点击「👁 查看原图」查看完整图片，点击「📷 换图」更换图片';
       }
       playButtonSound();
       render();
@@ -1217,92 +1271,14 @@
 
     btnPreview.addEventListener('click', togglePreview);
 
-    // ── 换图片 ──
+    // ── 换图片（从 img 文件夹循环切换，手机端仅竖版，桌面端仅横版） ──
     document.getElementById('btn-upload').addEventListener('click', function () {
       playButtonSound();
-      fileInput.click();
-    });
-
-    fileInput.addEventListener('change', function (e) {
-      var file = e.target.files[0];
-      if (!file) return;
-      fileInput.value = '';
-
-      var reader = new FileReader();
-      reader.onload = function (ev) {
-        var img = new Image();
-        img.onload = function () {
-          image = img;
-          currentImageSrc = file.name;
-          resetGameState();
-          layout();
-          initGame();
-          render();
-          playShuffleSound();
-        };
-        img.src = ev.target.result;
-      };
-      reader.readAsDataURL(file);
-    });
-
-    // ── 视频截图 ──
-    document.getElementById('btn-video').addEventListener('click', function () {
-      playButtonSound();
-      videoInput.click();
-    });
-
-    videoInput.addEventListener('change', function (e) {
-      var file = e.target.files[0];
-      if (!file) return;
-      videoInput.value = '';
-
-      var url = URL.createObjectURL(file);
-      videoPreview.src = url;
-      videoPreview.currentTime = 0;
-      videoPreviewOverlay.classList.add('show');
-
-      // 加载完成后跳到中间位置
-      videoPreview.onloadedmetadata = function() {
-        videoPreview.currentTime = videoPreview.duration / 3 || 0;
-      };
-    });
-
-    document.getElementById('btn-capture-frame').addEventListener('click', function () {
-      playButtonSound();
-      var vw = videoPreview.videoWidth;
-      var vh = videoPreview.videoHeight;
-      if (!vw || !vh) {
-        alert('无法读取视频帧，请尝试其他视频。');
-        return;
-      }
-
-      var offCanvas = document.createElement('canvas');
-      offCanvas.width = vw;
-      offCanvas.height = vh;
-      var offCtx = offCanvas.getContext('2d');
-      offCtx.drawImage(videoPreview, 0, 0, vw, vh);
-
-      var dataUrl = offCanvas.toDataURL('image/png');
-      var img = new Image();
-      img.onload = function () {
-        image = img;
-        currentImageSrc = '视频截图';
-        videoPreviewOverlay.classList.remove('show');
-        URL.revokeObjectURL(videoPreview.src);
-        videoPreview.src = '';
-        resetGameState();
-        layout();
-        initGame();
-        render();
-        playShuffleSound();
-      };
-      img.src = dataUrl;
-    });
-
-    document.getElementById('btn-video-cancel').addEventListener('click', function () {
-      videoPreviewOverlay.classList.remove('show');
-      URL.revokeObjectURL(videoPreview.src);
-      videoPreview.src = '';
+      var list = getActiveImageList();
+      if (list.length === 0) return;
+      currentImageIndex = (currentImageIndex + 1) % list.length;
+      loadImage(list[currentImageIndex]);
+      playShuffleSound();
     });
 
     // ── 重新打乱 ──
@@ -1330,9 +1306,7 @@
 
     document.getElementById('btn-replay-harder').addEventListener('click', function () {
       playButtonSound();
-      if (currentGridIndex < GRID_SIZES.length - 1) {
-        changeGridSize(1);
-      }
+      setGridSize(Math.min(rows + 1, MAX_GRID), Math.min(cols + 1, MAX_GRID));
       restartGame();
     });
 
@@ -1385,9 +1359,15 @@
     // ═══════════════════════════════════════
     //  启动
     // ═══════════════════════════════════════
-    updateGridSizeUI();
+    updateGridInputUI();
     updateSoundState();
-    loadImage(DEFAULT_IMG);
+
+    // 预加载图片列表，按横竖版分类后加载首张
+    buildImageLists(function () {
+      var list = getActiveImageList();
+      var firstImg = list.length > 0 ? list[0] : DEFAULT_IMG;
+      loadImage(firstImg);
+    });
 
   })();
 
