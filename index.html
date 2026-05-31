@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🎮 小游戏合集</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans SC", sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      color: #333;
+    }
+
+    /* ═══ 头部 ═══ */
+    .header {
+      text-align: center;
+      padding: 60px 20px 40px;
+      color: #fff;
+    }
+
+    .header h1 {
+      font-size: clamp(2rem, 5vw, 3rem);
+      font-weight: 800;
+      margin-bottom: 8px;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    .header p {
+      font-size: 1.1rem;
+      opacity: 0.85;
+      font-weight: 300;
+    }
+
+    /* ═══ 游戏卡片网格 ═══ */
+    .game-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 24px;
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 0 24px 60px;
+    }
+
+    /* ═══ 单个游戏卡片 ═══ */
+    .game-card {
+      background: #fff;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+      text-decoration: none;
+      color: inherit;
+      display: block;
+    }
+
+    .game-card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 16px 40px rgba(0,0,0,0.18);
+    }
+
+    .game-card:active {
+      transform: translateY(-2px);
+    }
+
+    /* 卡片封面区域 */
+    .card-cover {
+      height: 180px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 4rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card-cover.puzzle {
+      background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+    }
+
+    .card-cover.coming-soon {
+      background: linear-gradient(135deg, #e0e0e0 0%, #f5f5f5 100%);
+    }
+
+    .card-cover .icon {
+      position: relative;
+      z-index: 1;
+      filter: drop-shadow(0 4px 8px rgba(0,0,0,0.15));
+    }
+
+    /* 封面上的装饰几何形状 */
+    .card-cover .deco {
+      position: absolute;
+      border-radius: 50%;
+      opacity: 0.12;
+    }
+
+    .card-cover .deco-1 {
+      width: 120px;
+      height: 120px;
+      background: #fff;
+      top: -30px;
+      right: -30px;
+    }
+
+    .card-cover .deco-2 {
+      width: 80px;
+      height: 80px;
+      background: #fff;
+      bottom: -20px;
+      left: 10px;
+    }
+
+    /* 卡片信息区 */
+    .card-body {
+      padding: 20px 24px;
+    }
+
+    .card-body h3 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .card-body .desc {
+      font-size: 0.9rem;
+      color: #888;
+      line-height: 1.5;
+    }
+
+    .card-body .tag {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 4px 12px;
+      background: #f0f0f5;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      color: #764ba2;
+      font-weight: 500;
+    }
+
+    /* ═══ 底部 ═══ */
+    .footer {
+      text-align: center;
+      padding: 30px 20px;
+      color: rgba(255,255,255,0.6);
+      font-size: 0.85rem;
+    }
+
+    .footer a {
+      color: rgba(255,255,255,0.8);
+      text-decoration: underline;
+    }
+
+    /* ═══ 响应式 ═══ */
+    @media (max-width: 640px) {
+      .header {
+        padding: 40px 16px 28px;
+      }
+
+      .game-grid {
+        grid-template-columns: 1fr;
+        gap: 18px;
+        padding: 0 16px 40px;
+      }
+
+      .card-cover {
+        height: 150px;
+        font-size: 3rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ═══ 头部 ═══ -->
+  <header class="header">
+    <h1>🎮 小游戏合集</h1>
+    <p>纯前端小游戏，打开浏览器就能玩</p>
+  </header>
+
+  <!-- ═══ 游戏卡片列表 ═══ -->
+  <main class="game-grid">
+
+    <!-- 拼图游戏 -->
+    <a href="puzzle/index.html" class="game-card">
+      <div class="card-cover puzzle">
+        <div class="deco deco-1"></div>
+        <div class="deco deco-2"></div>
+        <span class="icon">🧩</span>
+      </div>
+      <div class="card-body">
+        <h3>拼图游戏</h3>
+        <p class="desc">网格吸附式拼图，支持拖拽拼合。可自定义切片数量、更换图片，拼好的切片会自动合并。</p>
+        <span class="tag">Canvas · 拖拽</span>
+      </div>
+    </a>
+
+    <!-- 更多游戏占位卡片 -->
+    <div class="game-card" style="cursor: default; opacity: 0.6;">
+      <div class="card-cover coming-soon">
+        <div class="deco deco-1"></div>
+        <div class="deco deco-2"></div>
+        <span class="icon">🃏</span>
+      </div>
+      <div class="card-body">
+        <h3>即将上线</h3>
+        <p class="desc">更多小游戏正在开发中，敬请期待……</p>
+        <span class="tag">Coming Soon</span>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ═══ 底部 ═══ -->
+  <footer class="footer">
+    <p>由 <a href="https://github.com/moqianbei/qianbeiGame" target="_blank" rel="noopener">GitHub Pages</a> 驱动 · 纯前端 · 无框架</p>
+  </footer>
+
+</body>
+</html>

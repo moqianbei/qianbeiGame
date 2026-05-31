@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>🧩 拼图游戏</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- ═══ 顶部工具栏 ═══ -->
+  <div class="top-bar">
+    <span class="title">🧩 拼图游戏</span>
+    <div class="right-group" style="position:relative;">
+      <!-- 音量调节弹窗 -->
+      <div class="volume-popup" id="volume-popup">
+        <label>🔊 音效 <input type="range" id="sfx-volume" min="0" max="100" value="60"></label>
+        <label>🎵 音乐 <input type="range" id="bgm-volume" min="0" max="100" value="30"></label>
+      </div>
+      <button class="btn-icon" id="btn-sound" title="音效设置">🔊</button>
+      <div class="grid-select">
+        <button class="btn btn-circle" id="btn-grid-less" title="减少切片">−</button>
+        <span class="grid-size-text" id="grid-size-text">4×3</span>
+        <button class="btn btn-circle" id="btn-grid-more" title="增加切片">+</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ 游戏主区域 ═══ -->
+  <main class="game-area">
+    <div class="canvas-wrapper">
+      <canvas id="puzzle-canvas"></canvas>
+    </div>
+  </main>
+
+  <!-- ═══ 底部工具栏 ═══ -->
+  <div class="bottom-bar">
+    <button class="btn btn-pill" id="btn-preview">👁 预览</button>
+    <button class="btn btn-pill" id="btn-upload">📷 换图</button>
+    <button class="btn btn-pill" id="btn-video">🎬 视频截图</button>
+    <button class="btn btn-pill" id="btn-restart">🔄 打乱</button>
+  </div>
+
+  <!-- ═══ 隐藏的文件选择 ═══ -->
+  <input type="file" id="file-input" accept="image/*" style="display:none">
+  <input type="file" id="video-input" accept="video/*" style="display:none">
+
+  <!-- ═══ 视频截图浮层 ═══ -->
+  <div class="video-preview-overlay" id="video-preview-overlay">
+    <video id="video-preview" controls playsinline muted></video>
+    <div class="video-preview-btns">
+      <button class="btn btn-pill" id="btn-capture-frame" style="background:#5b9ef0;color:#fff;border-color:#5b9ef0;">📸 截取当前帧</button>
+      <button class="btn btn-pill" id="btn-video-cancel">取消</button>
+    </div>
+  </div>
+
+  <!-- ═══ 完成弹窗 ═══ -->
+  <div class="overlay" id="complete-overlay">
+    <div class="overlay-card">
+      <span class="overlay-icon">🎉</span>
+      <span class="overlay-msg">恭喜完成！</span>
+      <span class="overlay-stats" id="completion-stats"></span>
+      <button class="overlay-btn" id="btn-replay">🔄 再来一局</button>
+      <button class="overlay-btn secondary" id="btn-replay-harder">🔥 挑战更难</button>
+    </div>
+  </div>
+
+  <!-- ═══ 庆祝彩带容器 ═══ -->
+  <div class="confetti-container" id="confetti-container"></div>
+
+  <script src="js/game.js"></script>
+
+</body>
+</html>
