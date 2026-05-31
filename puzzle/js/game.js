@@ -1390,5 +1390,4 @@
     loadImage(DEFAULT_IMG);
 
   })();
-  </script>
 
